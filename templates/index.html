@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SA:MP Attack Interface</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎮 SA:MP Attack Interface</h1>
+            <p>Interfaz web para ataques UDP a servidores SA:MP</p>
+        </header>
+
+        <div class="attack-form">
+            <h2>Iniciar Nuevo Ataque</h2>
+            <form id="attackForm">
+                <div class="form-group">
+                    <label for="ip">Dirección IP:</label>
+                    <input type="text" id="ip" name="ip" placeholder="Ej: 192.168.1.100" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="port">Puerto:</label>
+                    <input type="number" id="port" name="port" placeholder="Ej: 7777" min="1" max="65535" required>
+                </div>
+
+                <button type="submit" class="btn-start">🚀 Iniciar Ataque</button>
+            </form>
+        </div>
+
+        <div class="active-attacks">
+            <h2>Ataques Activos</h2>
+            <div class="attacks-header">
+                <button id="stopAllBtn" class="btn-stop-all">🛑 Detener Todos</button>
+            </div>
+            <div id="attacksList" class="attacks-list">
+                <!-- Los ataques activos se mostrarán aquí -->
+            </div>
+        </div>
+
+        <div id="messageBox" class="message-box"></div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Actualizar lista de ataques cada 2 segundos
+            updateAttacksList();
+            setInterval(updateAttacksList, 2000);
+
+            // Manejar envío del formulario
+            $('#attackForm').submit(function(e) {
+                e.preventDefault();
+                
+                var ip = $('#ip').val();
+                var port = $('#port').val();
+
+                $.ajax({
+                    url: '/start_attack',
+                    type: 'POST',
+                    data: { ip: ip, port: port },
+                    success: function(response) {
+                        if(response.success) {
+                            showMessage('✅ ' + response.message, 'success');
+                            $('#ip').val('');
+                            $('#port').val('');
+                            updateAttacksList();
+                        } else {
+                            showMessage('❌ Error: ' + response.error, 'error');
+                        }
+                    },
+                    error: function() {
+                        showMessage('❌ Error al conectar con el servidor', 'error');
+                    }
+                });
+            });
+
+            // Detener todos los ataques
+            $('#stopAllBtn').click(function() {
+                if(confirm('¿Estás seguro de detener todos los ataques?')) {
+                    $.ajax({
+                        url: '/stop_all',
+                        type: 'POST',
+                        success: function(response) {
+                            if(response.success) {
+                                showMessage('✅ Todos los ataques detenidos', 'success');
+                                updateAttacksList();
+                            }
+                        }
+                    });
+                }
+            });
+
+            // Función para actualizar la lista de ataques
+            function updateAttacksList() {
+                $.ajax({
+                    url: '/get_active_attacks',
+                    type: 'GET',
+                    success: function(response) {
+                        if(response.success) {
+                            displayAttacks(response.attacks);
+                        }
+                    }
+                });
+            }
+
+            // Mostrar ataques en la lista
+            function displayAttacks(attacks) {
+                var html = '';
+                if(attacks.length === 0) {
+                    html = '<p class="no-attacks">No hay ataques activos</p>';
+                } else {
+                    attacks.forEach(function(attack) {
+                        html += `
+                            <div class="attack-item">
+                                <div class="attack-info">
+                                    <strong>🎯 ${attack.ip}:${attack.port}</strong>
+                                    <div class="attack-details">
+                                        <span>⏰ Inicio: ${attack.start_time}</span>
+                                        <span>⌛ Duración: ${attack.duration}</span>
+                                    </div>
+                                </div>
+                                <button class="btn-stop" onclick="stopAttack('${attack.id}')">Detener</button>
+                            </div>
+                        `;
+                    });
+                }
+                $('#attacksList').html(html);
+            }
+
+            // Función global para detener un ataque específico
+            window.stopAttack = function(attackId) {
+                $.ajax({
+                    url: '/stop_attack',
+                    type: 'POST',
+                    data: { attack_id: attackId },
+                    success: function(response) {
+                        if(response.success) {
+                            showMessage('✅ Ataque detenido', 'success');
+                            updateAttacksList();
+                        }
+                    }
+                });
+            };
+
+            // Mostrar mensajes
+            function showMessage(message, type) {
+                var box = $('#messageBox');
+                box.html(message);
+                box.removeClass('success error').addClass(type).fadeIn();
+                
+                setTimeout(function() {
+                    box.fadeOut();
+                }, 3000);
+            }
+        });
+    </script>
+</body>
+</html>
